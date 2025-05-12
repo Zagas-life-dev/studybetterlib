@@ -29,5 +29,5 @@ next-env.d.ts
 /components/chat
 /study-ai
 /chat
-/api/chat
-/api/study-ai
+/app/api/chat
+/app/api/study-ai
