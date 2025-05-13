@@ -1,11 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import type { Session } from "@supabase/supabase-js"
 import { useTheme } from "next-themes"
-import { Moon, Sun } from "lucide-react"
+import { Moon, Sun, Book } from "lucide-react"
 
 export default function Header({ session }: { session: Session | null }) {
   const { theme, setTheme } = useTheme()
@@ -15,13 +14,7 @@ export default function Header({ session }: { session: Session | null }) {
       <div className="container mx-auto px-4 flex items-center justify-between">
         <div className="flex items-center">
           <Link href="/" className="flex items-center gap-2 text-xl font-bold text-purple-500 mr-6">
-            <Image 
-              src="/logo.png" 
-              alt="Study Better AI Logo" 
-              width={32} 
-              height={32} 
-              className="w-6 h-6 object-contain"
-            />
+            <Book className="w-6 h-6" />
             <span>Study Better AI</span>
           </Link>
 

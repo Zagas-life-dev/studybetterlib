@@ -17,12 +17,7 @@ const inter = Inter({
 export const metadata = {
   title: "Study Better AI",
   description: "A platform for university students to access comprehensive study materials",
-  generator: 'v0.dev',
-  icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
-  }
+  generator: 'v0.dev'
 }
 
 export default async function RootLayout({

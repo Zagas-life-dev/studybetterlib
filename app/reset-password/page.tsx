@@ -19,316 +19,148 @@ export default function ResetPassword() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null)
   const [tokenValid, setTokenValid] = useState<boolean | null>(null)
-  const [isHandlingDirectCode, setIsHandlingDirectCode] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
   const supabase = createClient()
   const { showNotification } = useNotification()
-  
-  // First, handle the case where we're on the Supabase domain
-  useEffect(() => {
-    // Check if we're on the Supabase domain with a code
-    const isSupabaseDomain = window.location.hostname.includes('supabase.co');
-    if (isSupabaseDomain) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get('code');
-      
-      if (code) {
-        console.log("Detected Supabase hosted domain with code. Redirecting to application...");
-        
-        // Get the part after supabase.co/ which should be your domain
-        const pathParts = window.location.pathname.split('/');
-        let targetDomain = pathParts[1] || 'studybetterai.com'; // Default fallback
-        
-        // Remove any trailing elements like "index.html"
-        if (targetDomain.includes('.')) {
-          targetDomain = targetDomain.split('.')[0] + '.com';
-        }
-        
-        // Check if this is likely a localhost environment
-        let protocol = 'https';
-        if (targetDomain.includes('localhost') || targetDomain.includes('127.0.0.1')) {
-          protocol = 'http';
-        }
-        
-        // Construct redirect URL to your actual domain
-        const redirectUrl = `${protocol}://${targetDomain}/reset-password?direct_code=${code}`;
-        console.log(`Redirecting to: ${redirectUrl}`);
-        
-        // Redirect to your actual domain with the code
-        window.location.href = redirectUrl;
-        return;
-      }
-    }
-  }, []);
-  
-  // Handle direct code from URL (after redirect from Supabase domain)
-  useEffect(() => {
-    const handleDirectCode = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const directCode = urlParams.get('direct_code');
-      
-      if (directCode && !isHandlingDirectCode) {
-        setIsHandlingDirectCode(true);
-        console.log("Found direct_code parameter. Attempting to exchange for session...");
-        
-        try {
-          // Exchange the code for a session
-          const { data, error } = await supabase.auth.exchangeCodeForSession(directCode);
-          
-          if (error) {
-            console.error("Error exchanging code for session:", error);
-            throw error;
-          }
-          
-          if (data && data.session) {
-            console.log("Successfully obtained session from code");
-            
-            // Get user data from the session
-            const { data: userData, error: userError } = await supabase.auth.getUser();
-            
-            if (userError) {
-              console.error("Error getting user:", userError);
-              throw userError;
-            }
-            
-            console.log("Authentication successful");
-            setUserEmail(userData.user?.email || null);
-            setTokenValid(true);
-            
-            // Clean URL by removing the direct_code
-            const url = new URL(window.location.href);
-            url.searchParams.delete('direct_code');
-            window.history.replaceState({}, document.title, url.toString());
-          }
-        } catch (error) {
-          console.error("Error handling direct code:", error);
-          setTokenValid(false);
-          showNotification({
-            title: "Authentication Error",
-            message: "Failed to authenticate with the provided code. Please request a new password reset link.",
-            type: "error"
-          });
-        }
-      }
-    };
-    
-    handleDirectCode();
-  }, [supabase.auth, showNotification]);
 
-  // Standard URL token extraction for normal password reset links
+  // Extract email and code from URL or storage
   useEffect(() => {
-    // Check for error parameters in URL hash (for expired links)
-    const checkForErrors = () => {
-      // Look for error in URL hash (eg: #error=access_denied&error_code=otp_expired)
-      if (window.location.hash && window.location.hash.includes('error')) {
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const error = hashParams.get('error');
-        const errorCode = hashParams.get('error_code');
-        const errorDescription = hashParams.get('error_description');
-        
-        console.log("Detected error in URL hash:", { error, errorCode, errorDescription });
-        
-        // Specifically handle expired OTP case
-        if (errorCode === 'otp_expired' || error === 'access_denied') {
-          setTokenValid(false);
-          
-          // Get redirectedFrom parameter if available to extract email
-          const urlParams = new URLSearchParams(window.location.search);
-          const redirectedFrom = urlParams.get('redirectedFrom');
-          
-          if (redirectedFrom) {
-            const email = localStorage.getItem("passwordResetEmail");
-            if (email) {
-              setUserEmail(email);
-            }
-          }
-          
-          showNotification({
-            title: "Link Expired",
-            message: "Your password reset link has expired. Please request a new one.",
-            type: "error"
-          });
-          
-          // Clean the URL to remove the error parameters
-          const cleanUrl = window.location.pathname + window.location.search;
-          window.history.replaceState({}, document.title, cleanUrl);
-          
-          return true;
-        }
-      }
-      return false;
-    };
+    // Check for code parameter in URL which should come from password reset flow
+    const urlParams = new URLSearchParams(window.location.search)
+    const code = urlParams.get('code')
+    const emailParam = urlParams.get('email')
     
-    // If there's an error in the URL, don't proceed with other token checks
-    if (checkForErrors()) {
-      return;
-    }
-    
-    const checkHashAndGetUserInfo = async () => {
-      try {
-        // First check if we have a stored email from the forgot-password page
-        const storedEmail = localStorage.getItem("passwordResetEmail")
-        
-        // Add logging for debugging
-        console.log("Reset password URL:", window.location.href);
-        console.log("Hash present:", !!window.location.hash);
-        console.log("Search params present:", !!window.location.search);
-        
-        // Get token from various possible locations
-        let accessToken = null;
-        let code = null;
-        
-        // Check for hash fragment first (#access_token=...)
-        if (window.location.hash) {
-          const hashParams = new URLSearchParams(window.location.hash.substring(1))
-          accessToken = hashParams.get('access_token')
-          console.log("Found token in hash:", !!accessToken)
-        }
-        
-        // If not found in hash, check query parameters (?token=...)
-        if (!accessToken && window.location.search) {
-          const queryParams = new URLSearchParams(window.location.search)
-          accessToken = queryParams.get('token') || queryParams.get('access_token')
-          
-          // Also check for code parameter
-          if (!accessToken) {
-            code = queryParams.get('code')
-            if (code) {
-              console.log("Found code in query params:", !!code);
-              
-              // Try to exchange the code for a session
-              try {
-                const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-                if (error) {
-                  console.error("Code exchange error:", error);
-                  throw error;
-                }
-                
-                if (data && data.session) {
-                  console.log("Successfully exchanged code for session");
-                  accessToken = data.session.access_token;
-                }
-              } catch (exchangeError) {
-                console.error("Error exchanging code for session:", exchangeError);
-              }
-            }
-          }
-          
-          console.log("Found token in query params:", !!accessToken)
-        }
-        
-        // If no token, try to get session from existing auth state
-        if (!accessToken) {
-          const { data: sessionData } = await supabase.auth.getSession();
-          if (sessionData && sessionData.session) {
-            console.log("Using existing session");
-            accessToken = sessionData.session.access_token;
-          }
-        }
-        
-        // Validate token presence
-        if (!accessToken) {
-          console.error("No access token found");
-          throw new Error("No access token found");
-        }
-        
-        console.log("Setting session with token");
-        
-        // Only set session if we got token from URL (not needed if using existing session)
-        if (code || window.location.hash || (window.location.search && 
-            (window.location.search.includes('token=') || window.location.search.includes('access_token=')))) {
-          const sessionResult = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: '',
-          });
-          
-          if (sessionResult.error) {
-            console.error("Session error:", sessionResult.error);
-            throw sessionResult.error;
-          }
-          
-          console.log("Session set successfully");
-        }
-        
-        // Get user data
-        const { data: userData, error: userError } = await supabase.auth.getUser();
-        
-        if (userError) {
-          console.error("User error:", userError);
-          throw userError;
-        }
-        
-        if (!userData?.user) {
-          console.error("No user data returned");
-          throw new Error("Could not retrieve user information");
-        }
-        
-        console.log("User authenticated successfully:", userData.user.email);
-        
-        // Set the email
-        setUserEmail(userData.user.email);
-        setTokenValid(true);
-        
-        // Save the email to localStorage as backup
-        if (userData.user.email) {
-          localStorage.setItem("passwordResetEmail", userData.user.email);
-        }
-      } catch (error) {
-        console.error("Token validation error:", error);
-        setTokenValid(false);
-        
-        // Try to use stored email as fallback
-        const storedEmail = localStorage.getItem("passwordResetEmail");
-        if (storedEmail) {
-          setUserEmail(storedEmail);
-          console.log("Using stored email as fallback:", storedEmail);
-        }
-        
-        showNotification({
-          title: "Invalid or expired link",
-          message: "This password reset link is invalid or has expired. Please request a new one.",
-          type: "error"
-        });
-        
-        // Redirect to forgot password page after a short delay
-        setTimeout(() => {
-          router.push('/forgot-password');
-        }, 3000);
-      }
-    }
-    
-    checkHashAndGetUserInfo();
-  }, [router, showNotification, supabase.auth, isHandlingDirectCode]);
-
-  // Improved email retrieval from storage at component initialization
-  useEffect(() => {
-    // Try to get email from multiple storage locations
-    const getStoredEmail = () => {
-      // First check localStorage
-      const emailFromLocal = localStorage.getItem("passwordResetEmail");
+    if (code) {
+      console.log("Found reset code in URL parameters, will use for authentication")
       
-      // Then check sessionStorage (might be encoded in base64)
-      const encodedEmail = sessionStorage.getItem("passwordResetEmail");
-      let emailFromSession = null;
+      // Store the code temporarily for the API call
+      sessionStorage.setItem("resetPasswordCode", code)
+    }
+    
+    if (emailParam) {
+      console.log("Found email in URL parameters:", emailParam)
+      // Store the email for later use
+      localStorage.setItem("passwordResetEmail", emailParam)
+      sessionStorage.setItem("passwordResetEmail", btoa(emailParam))
+      
+      setUserEmail(emailParam)
+      
+      // Clean email from URL but keep code parameter for auth
+      const url = new URL(window.location.href)
+      url.searchParams.delete('email')
+      window.history.replaceState({}, document.title, url.toString())
+    } else {
+      // Try to get email from storage as fallback
+      const emailFromLocal = localStorage.getItem("passwordResetEmail")
+      const encodedEmail = sessionStorage.getItem("passwordResetEmail")
+      
+      let emailFromSession = null
       if (encodedEmail) {
         try {
-          emailFromSession = atob(encodedEmail);
+          emailFromSession = atob(encodedEmail)
         } catch (e) {
           // If not properly encoded, use as-is
-          emailFromSession = encodedEmail;
+          emailFromSession = encodedEmail
         }
       }
       
-      return emailFromLocal || emailFromSession || null;
-    };
-    
-    const storedEmail = getStoredEmail();
-    if (storedEmail && !userEmail) {
-      console.log("Found stored email:", storedEmail);
-      setUserEmail(storedEmail);
+      const storedEmail = emailFromLocal || emailFromSession
+      if (storedEmail) {
+        console.log("Using stored email:", storedEmail)
+        setUserEmail(storedEmail)
+      } else if (!code) {
+        // If no email can be found and no code, redirect to forgot password page
+        console.log("No email parameter or stored email found, and no code")
+        router.push('/forgot-password')
+      }
     }
-  }, [userEmail]);
+  }, [router])
+
+  // Check if we have a valid code in the URL and use it to set up the page
+  useEffect(() => {
+    // Set up reset page without trying to exchange code for session from client
+    const checkCodeAndSetupPage = async () => {
+      try {
+        // Check for code and email in URL
+        const urlParams = new URLSearchParams(window.location.search)
+        const code = urlParams.get('code')
+        const emailParam = urlParams.get('email')
+        
+        // If we have a code, store it for later API call
+        if (code) {
+          console.log("Found code in URL, storing for later use")
+          sessionStorage.setItem("resetPasswordCode", code)
+        }
+        
+        // Try to get user data from existing session if available
+        try {
+          const { data: sessionData } = await supabase.auth.getSession()
+          const { data: userData } = await supabase.auth.getUser()
+          
+          if (userData?.user?.email) {
+            console.log("Found user in existing session:", userData.user.email)
+            setUserEmail(userData.user.email)
+            setTokenValid(true)
+            
+            // Save the email to localStorage as backup
+            localStorage.setItem("passwordResetEmail", userData.user.email)
+            return // We have what we need
+          }
+        } catch (sessionError) {
+          console.error("Error checking existing session:", sessionError)
+          // Continue to other methods
+        }
+        
+        // Use email from URL params
+        if (emailParam) {
+          console.log("Using email from URL parameter:", emailParam)
+          setUserEmail(emailParam)
+          localStorage.setItem("passwordResetEmail", emailParam)
+          
+          // Don't need to keep this in the URL
+          const url = new URL(window.location.href)
+          url.searchParams.delete('email')
+          window.history.replaceState({}, document.title, url.toString())
+          
+          // Set token valid to unknown (null) as we'll try to use it
+          setTokenValid(null)
+          return
+        }
+        
+        // Fallback to stored email
+        const emailFromLocal = localStorage.getItem("passwordResetEmail")
+        if (emailFromLocal) {
+          console.log("Using stored email:", emailFromLocal)
+          setUserEmail(emailFromLocal)
+          setTokenValid(false) // We have email but not from this flow
+          return
+        }
+        
+        // No valid information found
+        throw new Error("No authentication information available")
+      } catch (error) {
+        console.error("Setup error:", error)
+        setTokenValid(false)
+        
+        // Only show notification if we have no email information at all
+        if (!userEmail && !localStorage.getItem("passwordResetEmail")) {
+          showNotification({
+            title: "Reset Link Invalid",
+            message: "This password reset link appears to be invalid or has expired. Please request a new one.",
+            type: "error"
+          })
+          
+          // Redirect to forgot password page after a short delay
+          setTimeout(() => {
+            router.push('/forgot-password')
+          }, 3000)
+        }
+      }
+    }
+    
+    checkCodeAndSetupPage()
+  }, [router, showNotification, supabase.auth, userEmail])
 
   // Evaluate password strength
   useEffect(() => {
@@ -351,7 +183,6 @@ export default function ResetPassword() {
     
   }, [password])
 
-  // Rest of component remains unchanged
   const validateForm = () => {
     const errors: {[key: string]: string} = {};
     
@@ -383,70 +214,55 @@ export default function ResetPassword() {
     setIsLoading(true);
 
     try {
-      // If we have a valid token, use the updateUser method normally
-      if (tokenValid) {
-        const { error } = await supabase.auth.updateUser({ 
-          password: password 
-        });
-
-        if (error) {
-          throw error;
-        }
-      } else if (userEmail) {
-        // If we don't have a valid token but do have an email, 
-        // we can try to use the updateUser with email+password approach
-        // This provides a more direct approach than getting the token again
+      // Extract token/code from URL or session storage
+      const extractToken = () => {
+        // Check URL query params (?code=...)
+        const queryParams = new URLSearchParams(window.location.search);
+        const code = queryParams.get('code');
+        if (code) return code;
         
-        try {
-          // First try a direct password update using the email
-          const { error } = await supabase.auth.updateUser({ 
-            email: userEmail,
-            password: password 
-          });
-          
-          if (error) {
-            console.log("Direct password update failed:", error);
-            
-            // If direct update fails, redirect to request a new link
-            showNotification({
-              title: "Session Expired",
-              message: "Your password reset session has expired. Please request a new reset link.",
-              type: "error"
-            });
-            
-            setTimeout(() => {
-              router.push('/forgot-password');
-            }, 2000);
-            return;
-          }
-        } catch (updateError) {
-          console.error("Error during direct password update:", updateError);
-          
-          // Redirect to forgot password
-          showNotification({
-            title: "Session Expired",
-            message: "Your password reset session has expired. Please request a new reset link.",
-            type: "error"
-          });
-          
-          setTimeout(() => {
-            router.push('/forgot-password');
-          }, 2000);
-          return;
+        // Check URL hash (#access_token=...)
+        if (window.location.hash) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1));
+          const token = hashParams.get('access_token');
+          if (token) return token;
         }
-      } else {
-        throw new Error("Unable to reset password without valid token or email");
+        
+        // Check session storage
+        return sessionStorage.getItem("resetPasswordCode");
+      };
+      
+      const token = extractToken();
+      
+      // Call our server-side API
+      const response = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userEmail,
+          password: password,
+          token: token
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.message || result.error || 'Failed to reset password');
       }
 
-      // After successful reset, clear the stored email from all storage locations
+      // After successful reset, clear stored data
       localStorage.removeItem("passwordResetEmail");
       localStorage.removeItem("passwordResetTimestamp");
       sessionStorage.removeItem("passwordResetEmail");
+      sessionStorage.removeItem("resetPasswordCode");
 
-      // Show auto-dismiss notification
+      // Show success notification
       showNotification({
         title: "Password Reset Successful",
-        message: "Your password has been reset successfully. You can now log in with your new password.",
+        message: result.message || "Your password has been reset successfully. You can now log in with your new password.",
         type: "success"
       });
 
@@ -455,7 +271,7 @@ export default function ResetPassword() {
         router.push("/login");
       }, 3000);
     } catch (error: any) {
-      console.error("Update password error:", error);
+      console.error("Password reset error:", error);
       showNotification({
         title: "Error",
         message: error.message || "An error occurred while resetting your password.",
@@ -466,7 +282,6 @@ export default function ResetPassword() {
     }
   };
 
-  // UI helper functions
   const getPasswordStrengthColor = () => {
     if (passwordStrength === 'weak') return 'text-red-500';
     if (passwordStrength === 'medium') return 'text-yellow-500';

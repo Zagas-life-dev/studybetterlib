@@ -36,14 +36,7 @@ export default function Login() {
     // Check URL parameters
     const searchParams = new URLSearchParams(window.location.search);
     const isPending = searchParams.get("verification") === "pending";
-    const redirectedFrom = searchParams.get("redirectedFrom");
     
-    // Check hash for error parameters
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const errorCode = hashParams.get('error_code');
-    const errorDescription = hashParams.get('error_description');
-    
-    // Handle verification pending
     if (isPending) {
       showNotification({
         title: "Verify Your Email",
@@ -51,38 +44,6 @@ export default function Login() {
         type: "info"
       });
     }
-    
-    // Handle reset password link expired case
-    if (errorCode === 'otp_expired' || 
-        (errorDescription?.includes('expired') && redirectedFrom?.includes('reset-password'))) {
-      console.log("Detected expired password reset token");
-      
-      showNotification({
-        title: "Password Reset Link Expired",
-        message: "Your password reset link has expired. Please request a new one.",
-        type: "error"
-      });
-      
-      // Clean URL to remove error parameters
-      window.history.replaceState({}, document.title, '/login');
-      
-      // Store that we need to show the forgot password link prominently
-      localStorage.setItem("showResetPrompt", "true");
-    }
-    
-    // Show a prompt after a short delay if we have a showResetPrompt flag
-    const hasResetPrompt = localStorage.getItem("showResetPrompt") === "true";
-    if (hasResetPrompt) {
-      setTimeout(() => {
-        showNotification({
-          title: "Need to reset your password?",
-          message: "Click 'Forgot password?' below to request a new reset link.",
-          type: "info"
-        });
-        localStorage.removeItem("showResetPrompt");
-      }, 1000);
-    }
-    
   }, [showNotification]);
 
   // Validate the form

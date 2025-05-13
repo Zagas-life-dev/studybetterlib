@@ -10,6 +10,7 @@ const publicRoutes = [
   "/auth/callback",
   "/verify-email",
   "/forgot-password",
+  "/reset-password",  // Add reset-password to public routes
   "/privacy",
   "/terms"
 ]
@@ -22,6 +23,15 @@ const isPublicRoute = (path: string): boolean => {
 }
 
 export async function middleware(request: NextRequest) {
+  // Special handling for password reset codes that end up on the home page
+  if (request.nextUrl.pathname === "/" && request.nextUrl.searchParams.has("code")) {
+    // Redirect any code parameter to the reset-password page
+    const code = request.nextUrl.searchParams.get("code")
+    const redirectUrl = new URL('/reset-password', request.url)
+    redirectUrl.searchParams.set('code', code!)
+    return NextResponse.redirect(redirectUrl)
+  }
+
   // Check for API routes that need the Mistral API key and Agent ID
   if (request.nextUrl.pathname.startsWith("/api/chat")) {
     if (!process.env.MISTRAL_API_KEY) {

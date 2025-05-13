@@ -214,32 +214,7 @@ export default function ProfileClient({ initialProfile, cartCount }: ProfileClie
         </AlertDialogContent>
       </AlertDialog>
       
-      {/* Password Reset Confirmation Dialog */}
-      <AlertDialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
-        <AlertDialogContent className="bg-gray-900 border-gray-800">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reset your password</AlertDialogTitle>
-            <AlertDialogDescription>
-              We'll send a password reset link to your email address: {profile.email}
-              {isInCooldown && (
-                <div className="mt-2 text-amber-400">
-                  Please wait {cooldownRemaining} seconds before requesting another password reset email.
-                </div>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isLoading}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handlePasswordReset} 
-              disabled={isLoading || isInCooldown}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {isLoading ? "Sending..." : isInCooldown ? `Wait ${cooldownRemaining}s` : "Send Reset Link"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      
 
       <div className="md:col-span-1">
         <Card className="bg-gray-900 border-gray-800">
@@ -256,8 +231,7 @@ export default function ProfileClient({ initialProfile, cartCount }: ProfileClie
             </Avatar>
             <h2 className="text-2xl font-bold mb-1">{profile.full_name}</h2>
             <p className="text-gray-400 mb-6">{profile.email}</p>
-            {/* TODO: Implement photo upload with Supabase storage in a future update */}
-            <Button className="w-full mb-3" disabled>Upload Photo</Button>
+            
             <Button 
               variant={isEditing ? "default" : "outline"} 
               className="w-full"
@@ -324,14 +298,9 @@ export default function ProfileClient({ initialProfile, cartCount }: ProfileClie
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <h3 className="text-lg font-medium mb-3">Password</h3>
+             
               <div className="flex gap-3">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsPasswordDialogOpen(true)}
-                >
-                  Change Password
-                </Button>
+
                 <form action="/api/auth/signout" method="post">
                   <Button
                     type="submit"
