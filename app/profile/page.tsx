@@ -32,7 +32,6 @@ export default async function Profile() {
   const profileData = {
     id: session.user.id,
     full_name: profile?.full_name || firstName,
-    bio: profile?.bio || "",
     avatar_url: profile?.avatar_url || "",
     email: session.user.email || ""
   }

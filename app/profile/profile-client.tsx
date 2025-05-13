@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { 
   AlertDialog, 
   AlertDialogAction, 
@@ -24,7 +23,6 @@ import Link from "next/link"
 interface ProfileData {
   id: string
   full_name: string
-  bio?: string
   avatar_url?: string
   email: string
 }
@@ -61,8 +59,7 @@ export default function ProfileClient({ initialProfile, cartCount }: ProfileClie
       const { error } = await supabase
         .from('profiles')
         .update({
-          full_name: profile.full_name,
-          bio: profile.bio
+          full_name: profile.full_name
         })
         .eq('id', profile.id)
 
@@ -296,15 +293,6 @@ export default function ProfileClient({ initialProfile, cartCount }: ProfileClie
                     <div className="bg-gray-800 p-3 rounded-md">{profile.email}</div>
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Bio</label>
-                  <Textarea 
-                    value={profile.bio || ''} 
-                    onChange={(e) => setProfile({...profile, bio: e.target.value})}
-                    className="bg-gray-800 border-gray-700 min-h-[100px]"
-                    placeholder="Tell us about yourself..."
-                  />
-                </div>
                 <div className="pt-2 flex justify-end">
                   <Button onClick={handleProfileUpdate} disabled={isLoading}>
                     {isLoading ? "Saving..." : "Save Changes"}
@@ -322,12 +310,6 @@ export default function ProfileClient({ initialProfile, cartCount }: ProfileClie
                   <div>
                     <label className="block text-sm font-medium text-gray-400 mb-1">Email Address</label>
                     <div className="bg-gray-800 p-3 rounded-md">{profile.email}</div>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-400 mb-1">Bio</label>
-                  <div className="bg-gray-800 p-3 rounded-md min-h-[100px]">
-                    {profile.bio || "No bio added yet."}
                   </div>
                 </div>
               </>
