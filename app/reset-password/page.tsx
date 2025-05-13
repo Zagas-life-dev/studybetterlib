@@ -31,14 +31,35 @@ export default function ResetPassword() {
         // First check if we have a stored email from the forgot-password page
         const storedEmail = localStorage.getItem("passwordResetEmail")
         
-        // Get hash parameters
-        const hashParams = new URLSearchParams(window.location.hash.substring(1))
-        const accessToken = hashParams.get('access_token')
-        const type = hashParams.get('type')
+        // Get hash parameters - handle both fragment and query parameters
+        let accessToken = null;
+        
+        // Check for hash fragment first (#access_token=...)
+        if (window.location.hash) {
+          const hashParams = new URLSearchParams(window.location.hash.substring(1))
+          accessToken = hashParams.get('access_token')
+        }
+        
+        // If not found in hash, check query parameters (?token=...)
+        if (!accessToken && window.location.search) {
+          const queryParams = new URLSearchParams(window.location.search)
+          accessToken = queryParams.get('token') || queryParams.get('access_token')
+        }
+        
+        // Check for JWT in localStorage as last resort (might be set by Supabase client)
+        if (!accessToken) {
+          const supabaseSession = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}')
+          accessToken = supabaseSession?.access_token
+        }
+        
+        console.log("Debug - Token extraction attempt:", { 
+          hasToken: !!accessToken,
+          tokenPrefix: accessToken ? accessToken.substring(0, 10) + '...' : 'none'
+        })
         
         // Validate token presence
-        if (!accessToken || type !== 'recovery') {
-          throw new Error("Invalid or missing token")
+        if (!accessToken) {
+          throw new Error("No access token found in URL or local storage")
         }
         
         // Set Supabase session
@@ -51,8 +72,12 @@ export default function ResetPassword() {
         const { data: userData, error: userError } = await supabase.auth.getUser()
         
         if (userError || !userData.user) {
+          console.error("Auth error when getting user:", userError)
           throw new Error("Could not retrieve user information")
         }
+        
+        // If we got here, the token is valid
+        console.log("Token validation successful, user retrieved:", userData.user.email)
         
         // Set the email
         setUserEmail(userData.user.email)

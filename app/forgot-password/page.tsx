@@ -51,8 +51,12 @@ export default function ForgotPassword() {
     setIsLoading(true)
 
     try {
+      // Create a full URL for redirect, using current origin to work in all environments
+      const redirectTo = `${window.location.origin}/reset-password`
+      console.log("Reset password redirect URL:", redirectTo)
+      
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `https://studybetterai.com/reset-password`,
+        redirectTo: redirectTo,
       })
 
       if (error) {
