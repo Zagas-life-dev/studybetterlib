@@ -77,14 +77,15 @@ export default function SignUp() {
           data: {
             full_name: fullName,
           },
-          emailRedirectTo: `https://studybetterai.com/auth/callback?next=/dashboard`,
+          // Use complete URL with domain for proper redirection
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=/login`,
         },
       });
 
       if (error) {
         console.error("Signup error details:", error);
         
-        // Show more detailed error message
+        // Handle specific error types with clear messages
         if (error.message.includes("Database error")) {
           showNotification({
             title: "Sign up failed",
@@ -93,7 +94,17 @@ export default function SignUp() {
           });
           
           console.error("Database error during signup. The trigger on auth.users table may be causing issues.");
-        } else {
+        } 
+        // Handle email rate limit exceeded errors
+        else if (error.message?.toLowerCase().includes("rate limit") || 
+                 error.message?.toLowerCase().includes("too many requests")) {
+          showNotification({
+            title: "Too many attempts",
+            message: "You've made too many requests. Please wait a few minutes before trying again.",
+            type: "error"
+          });
+        }
+        else {
           throw error;
         }
       } else {

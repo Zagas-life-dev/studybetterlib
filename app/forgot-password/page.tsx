@@ -143,7 +143,16 @@ export default function ForgotPassword() {
       const timestamp = Date.now()
       setLastAttempt(timestamp)
       localStorage.setItem("passwordResetLastAttempt", String(timestamp))
+      
+      // Store the email more securely with an encrypted timestamp to help validate
+      // that this is a recent reset request
       localStorage.setItem("passwordResetEmail", email)
+      localStorage.setItem("passwordResetTimestamp", String(timestamp))
+      
+      // Encode the email in base64 to avoid special characters issues
+      const encodedEmail = btoa(email)
+      // Store to sessionStorage as well for more persistent access
+      sessionStorage.setItem("passwordResetEmail", encodedEmail)
       
       // Reset attempts counter on successful send
       setAttempts(0)

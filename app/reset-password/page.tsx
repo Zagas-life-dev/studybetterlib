@@ -118,8 +118,52 @@ export default function ResetPassword() {
 
   // Standard URL token extraction for normal password reset links
   useEffect(() => {
-    // Skip if we already handled a direct code
-    if (isHandlingDirectCode) return;
+    // Check for error parameters in URL hash (for expired links)
+    const checkForErrors = () => {
+      // Look for error in URL hash (eg: #error=access_denied&error_code=otp_expired)
+      if (window.location.hash && window.location.hash.includes('error')) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const error = hashParams.get('error');
+        const errorCode = hashParams.get('error_code');
+        const errorDescription = hashParams.get('error_description');
+        
+        console.log("Detected error in URL hash:", { error, errorCode, errorDescription });
+        
+        // Specifically handle expired OTP case
+        if (errorCode === 'otp_expired' || error === 'access_denied') {
+          setTokenValid(false);
+          
+          // Get redirectedFrom parameter if available to extract email
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirectedFrom = urlParams.get('redirectedFrom');
+          
+          if (redirectedFrom) {
+            const email = localStorage.getItem("passwordResetEmail");
+            if (email) {
+              setUserEmail(email);
+            }
+          }
+          
+          showNotification({
+            title: "Link Expired",
+            message: "Your password reset link has expired. Please request a new one.",
+            type: "error"
+          });
+          
+          // Clean the URL to remove the error parameters
+          const cleanUrl = window.location.pathname + window.location.search;
+          window.history.replaceState({}, document.title, cleanUrl);
+          
+          return true;
+        }
+      }
+      return false;
+    };
+    
+    // If there's an error in the URL, don't proceed with other token checks
+    if (checkForErrors()) {
+      return;
+    }
     
     const checkHashAndGetUserInfo = async () => {
       try {
@@ -257,6 +301,35 @@ export default function ResetPassword() {
     checkHashAndGetUserInfo();
   }, [router, showNotification, supabase.auth, isHandlingDirectCode]);
 
+  // Improved email retrieval from storage at component initialization
+  useEffect(() => {
+    // Try to get email from multiple storage locations
+    const getStoredEmail = () => {
+      // First check localStorage
+      const emailFromLocal = localStorage.getItem("passwordResetEmail");
+      
+      // Then check sessionStorage (might be encoded in base64)
+      const encodedEmail = sessionStorage.getItem("passwordResetEmail");
+      let emailFromSession = null;
+      if (encodedEmail) {
+        try {
+          emailFromSession = atob(encodedEmail);
+        } catch (e) {
+          // If not properly encoded, use as-is
+          emailFromSession = encodedEmail;
+        }
+      }
+      
+      return emailFromLocal || emailFromSession || null;
+    };
+    
+    const storedEmail = getStoredEmail();
+    if (storedEmail && !userEmail) {
+      console.log("Found stored email:", storedEmail);
+      setUserEmail(storedEmail);
+    }
+  }, [userEmail]);
+
   // Evaluate password strength
   useEffect(() => {
     if (!password) {
@@ -310,7 +383,7 @@ export default function ResetPassword() {
     setIsLoading(true);
 
     try {
-      // If we have a valid token, use the updateUser method
+      // If we have a valid token, use the updateUser method normally
       if (tokenValid) {
         const { error } = await supabase.auth.updateUser({ 
           password: password 
@@ -320,23 +393,55 @@ export default function ResetPassword() {
           throw error;
         }
       } else if (userEmail) {
-        // Fallback if token is expired but we have the email - force password reset
-        showNotification({
-          title: "Session Expired",
-          message: "Your password reset session has expired. Please request a new reset link.",
-          type: "error"
-        });
+        // If we don't have a valid token but do have an email, 
+        // we can try to use the updateUser with email+password approach
+        // This provides a more direct approach than getting the token again
         
-        setTimeout(() => {
-          router.push('/forgot-password');
-        }, 2000);
-        return;
+        try {
+          // First try a direct password update using the email
+          const { error } = await supabase.auth.updateUser({ 
+            email: userEmail,
+            password: password 
+          });
+          
+          if (error) {
+            console.log("Direct password update failed:", error);
+            
+            // If direct update fails, redirect to request a new link
+            showNotification({
+              title: "Session Expired",
+              message: "Your password reset session has expired. Please request a new reset link.",
+              type: "error"
+            });
+            
+            setTimeout(() => {
+              router.push('/forgot-password');
+            }, 2000);
+            return;
+          }
+        } catch (updateError) {
+          console.error("Error during direct password update:", updateError);
+          
+          // Redirect to forgot password
+          showNotification({
+            title: "Session Expired",
+            message: "Your password reset session has expired. Please request a new reset link.",
+            type: "error"
+          });
+          
+          setTimeout(() => {
+            router.push('/forgot-password');
+          }, 2000);
+          return;
+        }
       } else {
         throw new Error("Unable to reset password without valid token or email");
       }
 
-      // After successful reset, clear the stored email
+      // After successful reset, clear the stored email from all storage locations
       localStorage.removeItem("passwordResetEmail");
+      localStorage.removeItem("passwordResetTimestamp");
+      sessionStorage.removeItem("passwordResetEmail");
 
       // Show auto-dismiss notification
       showNotification({
