@@ -19,99 +19,243 @@ export default function ResetPassword() {
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong' | null>(null)
   const [tokenValid, setTokenValid] = useState<boolean | null>(null)
+  const [isHandlingDirectCode, setIsHandlingDirectCode] = useState(false)
   const { toast } = useToast()
   const router = useRouter()
   const supabase = createClient()
   const { showNotification } = useNotification()
-
-  // Check if we have a valid hash in the URL and extract user info
+  
+  // First, handle the case where we're on the Supabase domain
   useEffect(() => {
+    // Check if we're on the Supabase domain with a code
+    const isSupabaseDomain = window.location.hostname.includes('supabase.co');
+    if (isSupabaseDomain) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      
+      if (code) {
+        console.log("Detected Supabase hosted domain with code. Redirecting to application...");
+        
+        // Get the part after supabase.co/ which should be your domain
+        const pathParts = window.location.pathname.split('/');
+        let targetDomain = pathParts[1] || 'studybetterai.com'; // Default fallback
+        
+        // Remove any trailing elements like "index.html"
+        if (targetDomain.includes('.')) {
+          targetDomain = targetDomain.split('.')[0] + '.com';
+        }
+        
+        // Check if this is likely a localhost environment
+        let protocol = 'https';
+        if (targetDomain.includes('localhost') || targetDomain.includes('127.0.0.1')) {
+          protocol = 'http';
+        }
+        
+        // Construct redirect URL to your actual domain
+        const redirectUrl = `${protocol}://${targetDomain}/reset-password?direct_code=${code}`;
+        console.log(`Redirecting to: ${redirectUrl}`);
+        
+        // Redirect to your actual domain with the code
+        window.location.href = redirectUrl;
+        return;
+      }
+    }
+  }, []);
+  
+  // Handle direct code from URL (after redirect from Supabase domain)
+  useEffect(() => {
+    const handleDirectCode = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const directCode = urlParams.get('direct_code');
+      
+      if (directCode && !isHandlingDirectCode) {
+        setIsHandlingDirectCode(true);
+        console.log("Found direct_code parameter. Attempting to exchange for session...");
+        
+        try {
+          // Exchange the code for a session
+          const { data, error } = await supabase.auth.exchangeCodeForSession(directCode);
+          
+          if (error) {
+            console.error("Error exchanging code for session:", error);
+            throw error;
+          }
+          
+          if (data && data.session) {
+            console.log("Successfully obtained session from code");
+            
+            // Get user data from the session
+            const { data: userData, error: userError } = await supabase.auth.getUser();
+            
+            if (userError) {
+              console.error("Error getting user:", userError);
+              throw userError;
+            }
+            
+            console.log("Authentication successful");
+            setUserEmail(userData.user?.email || null);
+            setTokenValid(true);
+            
+            // Clean URL by removing the direct_code
+            const url = new URL(window.location.href);
+            url.searchParams.delete('direct_code');
+            window.history.replaceState({}, document.title, url.toString());
+          }
+        } catch (error) {
+          console.error("Error handling direct code:", error);
+          setTokenValid(false);
+          showNotification({
+            title: "Authentication Error",
+            message: "Failed to authenticate with the provided code. Please request a new password reset link.",
+            type: "error"
+          });
+        }
+      }
+    };
+    
+    handleDirectCode();
+  }, [supabase.auth, showNotification]);
+
+  // Standard URL token extraction for normal password reset links
+  useEffect(() => {
+    // Skip if we already handled a direct code
+    if (isHandlingDirectCode) return;
+    
     const checkHashAndGetUserInfo = async () => {
       try {
         // First check if we have a stored email from the forgot-password page
         const storedEmail = localStorage.getItem("passwordResetEmail")
         
-        // Get hash parameters - handle both fragment and query parameters
+        // Add logging for debugging
+        console.log("Reset password URL:", window.location.href);
+        console.log("Hash present:", !!window.location.hash);
+        console.log("Search params present:", !!window.location.search);
+        
+        // Get token from various possible locations
         let accessToken = null;
+        let code = null;
         
         // Check for hash fragment first (#access_token=...)
         if (window.location.hash) {
           const hashParams = new URLSearchParams(window.location.hash.substring(1))
           accessToken = hashParams.get('access_token')
+          console.log("Found token in hash:", !!accessToken)
         }
         
         // If not found in hash, check query parameters (?token=...)
         if (!accessToken && window.location.search) {
           const queryParams = new URLSearchParams(window.location.search)
           accessToken = queryParams.get('token') || queryParams.get('access_token')
+          
+          // Also check for code parameter
+          if (!accessToken) {
+            code = queryParams.get('code')
+            if (code) {
+              console.log("Found code in query params:", !!code);
+              
+              // Try to exchange the code for a session
+              try {
+                const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+                if (error) {
+                  console.error("Code exchange error:", error);
+                  throw error;
+                }
+                
+                if (data && data.session) {
+                  console.log("Successfully exchanged code for session");
+                  accessToken = data.session.access_token;
+                }
+              } catch (exchangeError) {
+                console.error("Error exchanging code for session:", exchangeError);
+              }
+            }
+          }
+          
+          console.log("Found token in query params:", !!accessToken)
         }
         
-        // Check for JWT in localStorage as last resort (might be set by Supabase client)
+        // If no token, try to get session from existing auth state
         if (!accessToken) {
-          const supabaseSession = JSON.parse(localStorage.getItem('supabase.auth.token') || '{}')
-          accessToken = supabaseSession?.access_token
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData && sessionData.session) {
+            console.log("Using existing session");
+            accessToken = sessionData.session.access_token;
+          }
         }
-        
-        console.log("Debug - Token extraction attempt:", { 
-          hasToken: !!accessToken,
-          tokenPrefix: accessToken ? accessToken.substring(0, 10) + '...' : 'none'
-        })
         
         // Validate token presence
         if (!accessToken) {
-          throw new Error("No access token found in URL or local storage")
+          console.error("No access token found");
+          throw new Error("No access token found");
         }
         
-        // Set Supabase session
-        await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: '',
-        })
+        console.log("Setting session with token");
+        
+        // Only set session if we got token from URL (not needed if using existing session)
+        if (code || window.location.hash || (window.location.search && 
+            (window.location.search.includes('token=') || window.location.search.includes('access_token=')))) {
+          const sessionResult = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: '',
+          });
+          
+          if (sessionResult.error) {
+            console.error("Session error:", sessionResult.error);
+            throw sessionResult.error;
+          }
+          
+          console.log("Session set successfully");
+        }
         
         // Get user data
-        const { data: userData, error: userError } = await supabase.auth.getUser()
+        const { data: userData, error: userError } = await supabase.auth.getUser();
         
-        if (userError || !userData.user) {
-          console.error("Auth error when getting user:", userError)
-          throw new Error("Could not retrieve user information")
+        if (userError) {
+          console.error("User error:", userError);
+          throw userError;
         }
         
-        // If we got here, the token is valid
-        console.log("Token validation successful, user retrieved:", userData.user.email)
+        if (!userData?.user) {
+          console.error("No user data returned");
+          throw new Error("Could not retrieve user information");
+        }
+        
+        console.log("User authenticated successfully:", userData.user.email);
         
         // Set the email
-        setUserEmail(userData.user.email)
-        setTokenValid(true)
+        setUserEmail(userData.user.email);
+        setTokenValid(true);
         
         // Save the email to localStorage as backup
         if (userData.user.email) {
-          localStorage.setItem("passwordResetEmail", userData.user.email)
+          localStorage.setItem("passwordResetEmail", userData.user.email);
         }
       } catch (error) {
-        console.error("Token validation error:", error)
-        setTokenValid(false)
+        console.error("Token validation error:", error);
+        setTokenValid(false);
         
         // Try to use stored email as fallback
-        const storedEmail = localStorage.getItem("passwordResetEmail")
+        const storedEmail = localStorage.getItem("passwordResetEmail");
         if (storedEmail) {
-          setUserEmail(storedEmail)
+          setUserEmail(storedEmail);
+          console.log("Using stored email as fallback:", storedEmail);
         }
         
         showNotification({
           title: "Invalid or expired link",
           message: "This password reset link is invalid or has expired. Please request a new one.",
           type: "error"
-        })
+        });
         
         // Redirect to forgot password page after a short delay
         setTimeout(() => {
-          router.push('/forgot-password')
-        }, 3000)
+          router.push('/forgot-password');
+        }, 3000);
       }
     }
     
-    checkHashAndGetUserInfo()
-  }, [router, showNotification, supabase.auth])
+    checkHashAndGetUserInfo();
+  }, [router, showNotification, supabase.auth, isHandlingDirectCode]);
 
   // Evaluate password strength
   useEffect(() => {
@@ -134,6 +278,7 @@ export default function ResetPassword() {
     
   }, [password])
 
+  // Rest of component remains unchanged
   const validateForm = () => {
     const errors: {[key: string]: string} = {};
     
@@ -176,7 +321,6 @@ export default function ResetPassword() {
         }
       } else if (userEmail) {
         // Fallback if token is expired but we have the email - force password reset
-        // Note: This typically requires admin privileges and might not work with default permissions
         showNotification({
           title: "Session Expired",
           message: "Your password reset session has expired. Please request a new reset link.",
@@ -217,6 +361,7 @@ export default function ResetPassword() {
     }
   };
 
+  // UI helper functions
   const getPasswordStrengthColor = () => {
     if (passwordStrength === 'weak') return 'text-red-500';
     if (passwordStrength === 'medium') return 'text-yellow-500';

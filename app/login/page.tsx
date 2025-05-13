@@ -44,7 +44,32 @@ export default function Login() {
         type: "info"
       });
     }
-  }, [showNotification]);
+    
+    // Check for password reset OTP expiration error
+    // This checks the hash fragment for error information
+    if (window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const error = hashParams.get('error');
+      const errorCode = hashParams.get('error_code');
+      
+      if (error === 'access_denied' && errorCode === 'otp_expired') {
+        console.log("Password reset link expired");
+        showNotification({
+          title: "Password Reset Link Expired",
+          message: "The password reset link you used has expired. Please request a new one.",
+          type: "error"
+        });
+        
+        // Clean the URL
+        window.history.replaceState(null, '', '/login');
+        
+        // Redirect to forgot password after a short delay
+        setTimeout(() => {
+          router.push('/forgot-password');
+        }, 3000);
+      }
+    }
+  }, [showNotification, router]);
 
   // Validate the form
   const validateForm = () => {
