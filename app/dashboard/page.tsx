@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { redirect } from "next/navigation"
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
@@ -62,17 +63,22 @@ export default async function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Welcome Section - 2/3 width */}
           <div className="md:col-span-3">
-            <div className="bg-gradient-to-r from-purple-700 to-indigo-500 rounded-lg p-8">
-              <h2 className="text-2xl font-bold mb-2">Hey, {firstName}!</h2>
-              <p className="mb-4 text-white/80">Check out the library for course. More features coming soon...</p>
-              <p className="mb-6">Save up to 10% with our combo plans</p>
+            <div className="bg-gradient-to-r from-purple-700 to-indigo-500 rounded-lg p-8 flex items-center gap-6">
+              <Image
+                src="/logo.png"
+                alt="Study Better Logo"
+                width={64}
+                height={64}
+                className="rounded-md"
+              />
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Hey, {firstName}!</h2>
+                <p className="mb-4 text-white/80">Check out the library for course. More features coming soon...</p>
+                <p className="mb-6">Save up to 10% with our combo plans</p>
+              </div>
             </div>
           </div>
-
-          
         </div>
-
-       
 
         {/* Your Courses Section */}
         <Card className="bg-gray-900 border-gray-800 mt-6">
@@ -97,9 +103,6 @@ export default async function Dashboard() {
                 <span>Still having issues? Reach out to us using the feedback system.</span>
               </div>
             </div>
-                      
-              
-            
           </CardContent>
         </Card>
       </main>

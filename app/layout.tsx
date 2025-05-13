@@ -17,7 +17,20 @@ const inter = Inter({
 export const metadata = {
   title: "Study Better AI",
   description: "A platform for university students to access comprehensive study materials",
-  generator: 'v0.dev'
+  generator: 'v0.dev',
+  icons: {
+    icon: [
+      { url: '/logo.png' },
+      { url: '/logo.png', sizes: '16x16', type: 'image/png' },
+      { url: '/logo.png', sizes: '32x32', type: 'image/png' },
+    ],
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+    other: {
+      rel: 'apple-touch-icon-precomposed',
+      url: '/logo.png',
+    },
+  }
 }
 
 export default async function RootLayout({
@@ -30,6 +43,9 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <head>
+        <link rel="icon" href="/logo.png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+        <meta name="theme-color" content="#000000" />
         {/* KaTeX CSS */}
         <link
           rel="stylesheet"

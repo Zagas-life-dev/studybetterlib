@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { Session } from "@supabase/supabase-js"
 import { Button } from "@/components/ui/button"
 import { ShoppingCart, Menu, Sun, Moon } from "lucide-react"
@@ -46,7 +47,14 @@ export default function DashboardHeader({ session, cartCount }: DashboardHeaderP
       <div className="container mx-auto px-4 py-3">
         <nav className="flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <Link href="/dashboard" className="text-xl font-bold">
+            <Link href="/dashboard" className="flex items-center gap-2 text-xl font-bold">
+              <Image 
+                src="/logo.png" 
+                alt="Study Better AI Logo" 
+                width={28} 
+                height={28} 
+                className="rounded-sm"
+              />
               Study Better
             </Link>
 
@@ -66,7 +74,6 @@ export default function DashboardHeader({ session, cartCount }: DashboardHeaderP
 
           <div className="flex items-center gap-4">
            
-
             {/* Mobile Navigation */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="md:hidden">
