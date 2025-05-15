@@ -77,7 +77,7 @@ export default function SignUp() {
           data: {
             full_name: fullName,
           },
-          // emailRedirectTo: `https://studybetterai.com/auth/callback?next=/dashboard`,
+           emailRedirectTo: `https://studybetterai.com/auth/callback?next=/login`,
         },
       });
 

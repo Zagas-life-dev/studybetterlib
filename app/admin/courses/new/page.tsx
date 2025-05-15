@@ -215,7 +215,8 @@ export default function NewCourse() {
                         <SelectItem value="Medicine">Medicine</SelectItem>
                         <SelectItem value="Engineering">Engineering</SelectItem>
                         <SelectItem value="Business">Business</SelectItem>
-                        <SelectItem value="Science">Science</SelectItem>
+                        <SelectItem value="Computing">Computing</SelectItem>
+                        <SelectItem value="Law">Law</SelectItem>
                         <SelectItem value="Arts">Arts</SelectItem>
                       </SelectContent>
                     </Select>
