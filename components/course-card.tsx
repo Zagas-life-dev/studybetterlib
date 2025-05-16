@@ -224,37 +224,53 @@ export default function CourseCard({ course }: CourseCardProps) {
             
             {/* Horizontal format selection */}
             <div className="flex flex-wrap gap-3 mb-4">
-              {course.formats.map(format => (
-                <div 
-                  key={format} 
-                  className={`border ${selectedFormats.includes(format) ? 'border-purple-500 bg-purple-900/20' : 'border-gray-700'} 
-                              rounded-md p-2 cursor-pointer transition-all hover:border-purple-400`}
-                  onClick={() => handleFormatToggle(format)}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <Checkbox 
-                      id={`${course.id}-${format}`} 
-                      checked={selectedFormats.includes(format)}
-                      onCheckedChange={() => handleFormatToggle(format)}
-                      className="data-[state=checked]:bg-purple-500"
-                    />
-                    <label 
-                      htmlFor={`${course.id}-${format}`}
-                      className="text-sm font-medium cursor-pointer flex items-center gap-1"
-                    >
-                      {format === "summary" && <FileText className="h-4 w-4" />}
-                      {format === "explanation" && <BookOpen className="h-4 w-4" />}
-                      {format === "podcast" && <Headphones className="h-4 w-4" />}
-                      {format.charAt(0).toUpperCase() + format.slice(1)}
-                    </label>
+              {course.formats.map(format => {
+                const isSelected = selectedFormats.includes(format);
+                let formatIcon;
+                let price;
+                
+                if (format === "summary") {
+                  formatIcon = <FileText className="h-4 w-4" />;
+                  price = course.summary_price;
+                } else if (format === "explanation") {
+                  formatIcon = <BookOpen className="h-4 w-4" />;
+                  price = course.explanation_price;
+                } else if (format === "podcast") {
+                  formatIcon = <Headphones className="h-4 w-4" />;
+                  price = course.podcast_price;
+                }
+                
+                return (
+                  <div 
+                    key={format} 
+                    className={`border rounded-md p-3 cursor-pointer transition-all w-full sm:w-auto flex-1
+                              ${isSelected 
+                                ? 'border-purple-500 bg-purple-600/20 shadow-[0_0_10px_rgba(147,51,234,0.3)]' 
+                                : 'border-gray-700 hover:border-gray-500'}`}
+                    onClick={() => handleFormatToggle(format)}
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="flex items-center gap-2">
+                        {formatIcon}
+                        <span className="text-sm font-medium capitalize">
+                          {format}
+                        </span>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center
+                                    ${isSelected 
+                                      ? 'border-purple-500 bg-purple-500' 
+                                      : 'border-gray-500'}`}>
+                        {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                      </div>
+                    </div>
+                    {price !== undefined && (
+                      <p className={`text-sm font-medium mt-1 ${isSelected ? 'text-purple-300' : 'text-gray-400'}`}>
+                        ₦{price.toLocaleString()}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-sm text-right font-medium">
-                    {format === "summary" && course.summary_price && `₦${course.summary_price.toLocaleString()}`}
-                    {format === "explanation" && course.explanation_price && `₦${course.explanation_price.toLocaleString()}`}
-                    {format === "podcast" && course.podcast_price && `₦${course.podcast_price.toLocaleString()}`}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
             
             {/* Display combo prices directly */}
