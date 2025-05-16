@@ -115,7 +115,29 @@ interface CourseData {
   code: string
   faculty: string
   department: string
+  university?: string
   image_url?: string
+  formats?: string[]
+  
+  // Individual prices
+  summary_price?: number | null
+  explanation_price?: number | null
+  podcast_price?: number | null
+  
+  // Combo prices
+  combo_summary_podcast_price?: number | null
+  combo_summary_explanation_price?: number | null
+  combo_explanation_podcast_price?: number | null
+  combo_all_price?: number | null
+  
+  // Purchase links
+  summary_link?: string | null
+  explanation_link?: string | null
+  podcast_link?: string | null
+  combo_summary_podcast_link?: string | null
+  combo_summary_explanation_link?: string | null
+  combo_explanation_podcast_link?: string | null
+  combo_all_link?: string | null
 }
 
 export async function updateCourse(courseId: string, courseData: CourseData) {
@@ -146,7 +168,16 @@ export async function updateCourse(courseId: string, courseData: CourseData) {
   }
 
   try {
-    const { error } = await supabase.from("courses").update(courseData).eq("id", courseId)
+    // Add updated_at timestamp to course data
+    const updatedCourseData = {
+      ...courseData,
+      updated_at: new Date().toISOString(),
+    }
+
+    const { error } = await supabase
+      .from("courses")
+      .update(updatedCourseData)
+      .eq("id", courseId)
 
     if (error) {
       throw error
@@ -154,7 +185,9 @@ export async function updateCourse(courseId: string, courseData: CourseData) {
 
     revalidatePath("/admin/courses")
     revalidatePath(`/admin/courses/${courseId}`)
+    revalidatePath(`/admin/courses/edit/${courseId}`)
     revalidatePath("/courses")
+    revalidatePath(`/courses/${courseId}`)
 
     return { success: true }
   } catch (error: any) {
@@ -246,6 +279,64 @@ export async function deleteCourse(courseId: string) {
     return {
       success: false,
       error: error.message || "An error occurred while deleting the course",
+    }
+  }
+}
+
+export async function createCourse(courseData: CourseData) {
+  const supabase = await createClient()
+
+  // First verify admin status
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session) {
+    return { success: false, error: "Not authenticated" }
+  }
+
+  // Check if user is admin or has the admin email
+  const { data: user } = await supabase.auth.getUser()
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", session.user.id)
+    .single()
+
+  const isAdminEmail = user?.user?.email === "studybetter.ai@gmail.com"
+  const isAdminFlag = profile?.is_admin === true
+
+  if (!isAdminFlag && !isAdminEmail) {
+    return { success: false, error: "Unauthorized: Admin access required" }
+  }
+
+  try {
+    // Add timestamps to course data
+    const newCourseData = {
+      ...courseData,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    const { data, error } = await supabase
+      .from("courses")
+      .insert(newCourseData)
+      .select("id")
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    revalidatePath("/admin/courses")
+    revalidatePath("/courses")
+
+    return { success: true, courseId: data.id }
+  } catch (error: any) {
+    console.error("Error creating course:", error)
+    return {
+      success: false,
+      error: error.message || "An error occurred while creating the course",
     }
   }
 }
