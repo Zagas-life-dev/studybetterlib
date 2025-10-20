@@ -21,7 +21,8 @@ function getUserInitials(email: string): string {
     .slice(0, 2)
 }
 
-// Use a client component wrapper to avoid hydration issues
+// Use a client component wrapper to avoid hydration issues ededaw oden
+// to force chages 
 export default async function StudyAIPage({
   searchParams,
 }: {
